@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlowMRP • Material Requirement Processing (Demo)</title>
+  <!-- Materialize CSS + Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{brand:{500:'#6366f1',600:'#4f46e5'}},boxShadow:{soft:'0 10px 30px -12px rgba(0,0,0,.25)'}}}}</script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <!-- Nav -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 text-slate-800">
+  <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="material-icons text-brand-600">precision_manufacturing</span>
+      <span class="font-semibold text-slate-900">FlowMRP</span>
+      <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">Demo</span>
+    </div>
+
+      <div class="flex items-center gap-2">
+        <button id="loadDemo" class="waves-effect btn-small">Load Demo</button>
+        <button id="runMrp" class="waves-effect waves-light btn-small indigo">Run MRP</button>
+        <button id="exportCsv" class="waves-effect btn-small">Export CSV</button>
+        <button id="printBtn" class="waves-effect btn-small">Print</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <!-- Planning Horizon -->
+    <section class="glass-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">Planning Horizon</h2>
+        <div class="text-sm text-slate-600">Edit weeks & calendars</div>
+      </div>
+      <div class="mt-3 flex items-center gap-3">
+        <label>Periods:</label>
+        <select id="periods" class="browser-default rounded-lg bg-white border border-slate-200 p-1">
+          <option value="6">6 weeks</option>
+          <option value="8" selected>8 weeks</option>
+          <option value="12">12 weeks</option>
+        </select>
+        <label class="ml-4">Start (week label):</label>
+        <input id="startLabel" class="rounded-lg bg-white border border-slate-200 p-1" value="W1">
+      </div>
+    </section>
+
+    <!-- Items (Master Data) -->
+    <section class="glass-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">Items (Master Data)</h2>
+        <button id="addItemBtn" class="waves-effect waves-light btn-small indigo">Add Item</button>
+      </div>
+      <div class="overflow-auto mt-3">
+        <table id="itemsTable" class="striped highlight responsive-table text-sm">
+          <thead>
+            <tr><th>Item</th><th>Description</th><th>LT (wks)</th><th>Lot</th><th>FOQ</th><th>Safety</th><th>On‑hand</th><th>Action</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- BOM -->
+    <section class="glass-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">BOM (Parent → Component)</h2>
+        <button id="addBomBtn" class="waves-effect btn-small">Add Link</button>
+      </div>
+      <div class="overflow-auto mt-3">
+        <table id="bomTable" class="striped highlight responsive-table text-sm">
+          <thead>
+            <tr><th>Parent</th><th>Component</th><th>Qty/Parent</th><th>Action</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Demand / Receipts -->
+    <section class="glass-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">Demand & Scheduled Receipts</h2>
+        <div class="text-sm text-slate-600">Click cells to edit values</div>
+      </div>
+      <div class="mt-3 grid md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-semibold mb-1">Independent Demand (Gross)</h3>
+          <div id="demandWrap" class="overflow-auto"></div>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-1">Scheduled Receipts</h3>
+          <div id="receiptsWrap" class="overflow-auto"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="glass-white rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">MRP Results</h2>
+        <div class="text-sm text-slate-600">Time‑phased tables per item</div>
+      </div>
+      <div id="results" class="mt-3 grid lg:grid-cols-2 gap-4"></div>
+    </section>
+  </main>
+
+  <!-- Modals -->
+  <div id="itemModal" class="modal">
+    <div class="modal-content">
+      <h4>Add / Edit Item</h4>
+      <div class="grid md:grid-cols-3 gap-3 mt-2">
+        <div class="input-field m-0"><input id="itemId" placeholder="Item code (e.g., A)"/><label class="active" for="itemId">Item</label></div>
+        <div class="input-field m-0 md:col-span-2"><input id="itemDesc" placeholder="Description"/><label class="active" for="itemDesc">Description</label></div>
+        <div class="input-field m-0"><input id="itemLT" type="number" min="0" value="1"/><label class="active" for="itemLT">Lead Time (weeks)</label></div>
+        <div class="input-field m-0"><select id="itemLot" class="browser-default"><option value="LFL">LFL</option><option value="FOQ">FOQ</option></select><label class="active" for="itemLot">Lot Sizing</label></div>
+        <div class="input-field m-0"><input id="itemFOQ" type="number" min="1" value="50"/><label class="active" for="itemFOQ">Fixed Order Qty</label></div>
+        <div class="input-field m-0"><input id="itemSS" type="number" min="0" value="0"/><label class="active" for="itemSS">Safety Stock</label></div>
+        <div class="input-field m-0"><input id="itemOH" type="number" min="0" value="0"/><label class="active" for="itemOH">On‑Hand</label></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#" id="saveItem" class="modal-close waves-effect waves-green btn">Save Item</a>
+    </div>
+  </div>
+
+  <div id="bomModal" class="modal">
+    <div class="modal-content">
+      <h4>Add BOM Link</h4>
+      <div class="grid md:grid-cols-3 gap-3 mt-2">
+        <div class="input-field m-0"><input id="bomParent" placeholder="Parent (e.g., A)"/><label class="active" for="bomParent">Parent</label></div>
+        <div class="input-field m-0"><input id="bomChild" placeholder="Component (e.g., B)"/><label class="active" for="bomChild">Component</label></div>
+        <div class="input-field m-0"><input id="bomQty" type="number" min="1" value="1"/><label class="active" for="bomQty">Qty per Parent</label></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#" id="saveBom" class="modal-close waves-effect waves-green btn">Save Link</a>
+    </div>
+  </div>
+
+  <footer class="text-center py-8 text-slate-500 text-sm">FlowMRP • Client‑side demo (Tailwind + Materialize)</footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
